@@ -1,3 +1,11 @@
+.idea/
+.libs/
+.out/
+.gradle/
+.build/
+
+**/*.jar
+
 # Logs
 logs
 *.log
