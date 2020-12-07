@@ -32,7 +32,7 @@ class Group2  : Group {
             }
             initied = true
         } else {
-            for(c in hash) {
+            for(c in hash.toList()) {
                 if (!line.contains(c)) {
                     hash.remove(c)
                 }
@@ -48,21 +48,21 @@ class Group2  : Group {
 
 fun main(args: Array<String>) {
     val file = File("input.txt").readLines() + "";
-//
-//    val groups = mutableListOf<Group>()
-//
-//    var last = Group2()
-//
-//    for(line in file) {
-//        if (line.isBlank()) {
-//            groups.add(last);
-//            last = Group2();
-//            continue;
-//        }
-//        last.add(line)
-//    }
-//
-//    val sum = groups.map { it.sum() }.sum();
-//
-//    println(sum)
+
+    val groups = mutableListOf<Group>()
+
+    var last = Group2()
+
+    for(line in file) {
+        if (line.isBlank()) {
+            groups.add(last);
+            last = Group2();
+            continue;
+        }
+        last.add(line)
+    }
+
+    val sum = groups.map { it.sum() }.sum();
+
+    println(sum)
 }
