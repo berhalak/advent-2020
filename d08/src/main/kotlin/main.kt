@@ -150,6 +150,8 @@ fun main(args: Array<String>) {
             if (toggled != null) {
                 current[index] = toggled
             }
+            else
+                return test(index + 1)
         }
 
         val prog = Program(current)
