@@ -107,6 +107,8 @@ dist
 
 # kotlin
 
+/Seam Carving
+
 .DS_Store
 .idea/shelf
 /confluence/target
