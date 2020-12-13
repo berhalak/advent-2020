@@ -7,8 +7,10 @@ class Bus(val id: Int, val index: Long = 0) {
     var _dep = false
     var last = 0L
 
-    fun tick() {
+    fun tick(time: Long = -1) {
         _time++
+
+        if (time >= 0) _time = time
 
         if (_time % id.toLong() == 0L) {
             _dep = true
@@ -23,8 +25,37 @@ class Bus(val id: Int, val index: Long = 0) {
         return _dep
     }
 
-    fun willDepart(index: Long) : Boolean {
+    fun willDepart(index: Long): Boolean {
         return (_time + index) % id == 0L
+    }
+}
+
+class Inc {
+    var time = 0L
+    val map = mutableMapOf<String, Long>()
+    val done = mutableSetOf<String>()
+    var max = 1L
+
+    fun next(): Long {
+        time += max
+
+        return time
+    }
+
+    fun inform(a: Bus, b: Bus, t: Long) {
+        val key = "${a.index}_${b.index}"
+        if (done.contains(key)) return
+        if (map.containsKey(key)) {
+            val delta = t - map[key]!!
+            val nMax = maxOf(max, delta)
+            if (max != nMax) {
+                println("Changing gear to $nMax")
+            }
+            max = nMax
+            done.add(key)
+        } else {
+            map[key] = t;
+        }
     }
 }
 
@@ -55,30 +86,43 @@ fun main() {
         }
     }
 
-    fun test2() {
-        val input = file[1].split(",").mapIndexed{ n, id -> n to id}
-        val buses = input.filter { it.second != "x" }.map { Bus(it.second.toInt(), it.first.toLong()) }
 
-        var time = 0L
+    fun test2() {
+        val busesIds = file[1].split(",").mapIndexed { n, x -> n to x }
+        val buses = busesIds.filter { it.second != "x" }.map { Bus(it.second.toInt(), it.first.toLong()) }
+
+        var time = 0L;
+
+        val inc = Inc()
+
+        var start = 0;
 
         while (true) {
-            buses.forEach { it.tick() }
 
-            if (buses[0].departed()) {
-                // ask each if it will depart after n minutes
-                val all = buses.drop(1).all { it.willDepart(it.index) }
+            buses.forEach { it.tick(time) }
 
-                if (all) {
-                    println(time)
+            var start = 0;
+            while (start < buses.lastIndex) {
+                val first = buses[start]
+                val next = buses[start + 1];
+                if (first.willDepart(first.index) && next.willDepart(next.index)) {
+                    inc.inform(first, next, time)
+                    start++
+                } else {
                     break
                 }
             }
 
+            if (start == buses.lastIndex) {
+                println(time)
+                break
+            }
 
-            time++;
 
+            time = inc.next()
         }
     }
 
-    test2()
+    test2();
+
 }
