@@ -11,3 +11,37 @@ fun <T> _combine(list: List<T>): Sequence<Pair<T, T>> = sequence {
 }
 
 fun <T> List<T>.combine() : Sequence<Pair<T, T>> = _combine(this)
+
+
+class Degree(private val value: Int) {
+    fun toInt(): Int {
+        var normal = value
+        while (normal < 0) normal += 360
+        while (normal >= 360) normal -= 360
+        return normal
+    }
+}
+
+
+enum class Direction {
+    NORTH,
+    EAST,
+    SOUTH,
+    WEST;
+
+    fun left(d: Int): Direction {
+        val delta = d / 90
+        var current = this.ordinal - delta
+        while (current < 0) current += 4
+        while (current > 3) current -= 4
+        return values()[current]
+    }
+
+    fun right(d: Int): Direction {
+        val delta = d / 90
+        var current = this.ordinal + delta
+        while (current < 0) current += 4
+        while (current > 3) current -= 4
+        return values()[current]
+    }
+}
