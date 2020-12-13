@@ -1,4 +1,6 @@
 import java.io.File
+import kotlin.concurrent.thread
+import kotlin.math.abs
 
 open class Step(val dir: Direction, val value: Int) {
     operator fun times(delta: Int): Step {
@@ -14,27 +16,19 @@ open class Step(val dir: Direction, val value: Int) {
     }
 }
 
-class North(value: Int) : Step(Direction.NORTH, value) {
+class North(value: Int) : Step(Direction.NORTH, value)
 
-}
+class South(value: Int) : Step(Direction.SOUTH, value)
 
-class South(value: Int) : Step(Direction.SOUTH, value) {
+class East(value: Int) : Step(Direction.EAST, value)
 
-}
-
-class East(value: Int) : Step(Direction.EAST, value) {
-
-}
-
-class West(value: Int) : Step(Direction.WEST, value) {
-
-}
+class West(value: Int) : Step(Direction.WEST, value)
 
 class Degree(private val value: Int) {
     fun toInt(): Int {
-        var normal = value;
-        while (normal < 0) normal = 360 + normal
-        while (normal >= 360) normal = normal - 360
+        var normal = value
+        while (normal < 0) normal += 360
+        while (normal >= 360) normal -= 360
         return normal
     }
 }
@@ -47,41 +41,31 @@ enum class Direction {
     WEST;
 
     fun left(d: Int): Direction {
-        val delta = d / 90;
-        var current = this.ordinal - delta;
-        while (current < 0) current = 4 + current
-        while (current > 3) current = current - 4
-        val res = Direction.values()[current]
-        return res;
+        val delta = d / 90
+        var current = this.ordinal - delta
+        while (current < 0) current += 4
+        while (current > 3) current -= 4
+        return values()[current]
     }
 
     fun right(d: Int): Direction {
-        val delta = d / 90;
-        var current = this.ordinal + delta;
-        while (current < 0) current = 4 - current
-        while (current > 3) current = current - 4
-        val res = Direction.values()[current]
-        return res;
-    }
-
-    fun degree(): Int {
-        return ordinal * 90;
+        val delta = d / 90
+        var current = this.ordinal + delta
+        while (current < 0) current += 4
+        while (current > 3) current -= 4
+        return values()[current]
     }
 }
 
-class Action2(val text: String) {
-    fun print() {
-        println(text)
-    }
-
+class Action2(private val text: String) {
     fun move(
         waypoint: Vector,
         ship: Point
     ) {
-        val match = Regex("(?<a>[A-Z])(?<val>\\d+)").matchEntire(text)
+        val match = Regex("(?<a>[A-Z])(?<val>\\d+)").matchEntire(text)!!
 
-        val action = match!!.groups["a"]!!.value;
-        val delta = match!!.groups["val"]!!.value.toInt()
+        val action = match.groups["a"]!!.value
+        val delta = match.groups["val"]!!.value.toInt()
 
         when (action) {
             "N" -> waypoint.move(North(delta))
@@ -99,9 +83,7 @@ open class Point {
 
     protected val position = mutableMapOf<Direction, Int>()
 
-    constructor() {
-
-    }
+    constructor()
 
     constructor(hor: Step, ver: Step) {
         this.move(hor)
@@ -111,29 +93,29 @@ open class Point {
     fun ver(): Step {
         fun value(d: Direction): Int {
             if (position.containsKey(d)) return position[d]!!
-            return 0;
+            return 0
         }
 
         val south = value(Direction.SOUTH) - value(Direction.NORTH)
 
-        return if (south > 0) Step(Direction.SOUTH, Math.abs(south)) else Step(Direction.NORTH, Math.abs(south))
+        return if (south > 0) Step(Direction.SOUTH, abs(south)) else Step(Direction.NORTH, abs(south))
     }
 
     fun hor(): Step {
         fun value(d: Direction): Int {
             if (position.containsKey(d)) return position[d]!!
-            return 0;
+            return 0
         }
 
         val east = value(Direction.EAST) - value(Direction.WEST)
 
-        return if (east > 0) Step(Direction.EAST, Math.abs(east)) else Step(Direction.WEST, Math.abs(east))
+        return if (east > 0) Step(Direction.EAST, abs(east)) else Step(Direction.WEST, abs(east))
     }
 
     override fun toString(): String {
         fun value(d: Direction): Int {
             if (position.containsKey(d)) return position[d]!!
-            return 0;
+            return 0
         }
 
         val south = value(Direction.SOUTH) - value(Direction.NORTH)
@@ -142,30 +124,26 @@ open class Point {
         val hor = if (east > 0) "east" else "west"
         val ver = if (south > 0) "south" else "north"
 
-        return "$hor ${Math.abs(east)}, $ver ${Math.abs(south)}"
+        return "$hor ${abs(east)}, $ver ${abs(south)}"
     }
 
-    fun print() {
-        println(toString())
-    }
-
-    fun manhatan(): Int {
+    fun manhattan(): Int {
         fun value(d: Direction): Int {
             if (position.containsKey(d)) return position[d]!!
-            return 0;
+            return 0
         }
 
         val ver = value(Direction.SOUTH) - value(Direction.NORTH)
         val hor = value(Direction.EAST) - value(Direction.WEST)
 
-        return Math.abs(ver) + Math.abs(hor)
+        return abs(ver) + abs(hor)
     }
 
     fun move(step: Step) {
-        val direction = step.dir;
-        val value = step.value;
-        if (!position.containsKey(direction)) position.set(direction, 0);
-        position[direction] = position[direction]!! + value;
+        val direction = step.dir
+        val value = step.value
+        if (!position.containsKey(direction)) position[direction] = 0
+        position[direction] = position[direction]!! + value
     }
 }
 
@@ -176,37 +154,34 @@ class Vector(hor: Step, ver: Step) : Point(hor, ver) {
 
     fun right(deg: Int) {
         val correct = Degree(deg).toInt()
+
+        if (correct == 0) return
+
         val x = hor()
         val y = ver()
+
         position.clear()
 
-        if (correct == 90) {
-            move(East(y.normal()))
-            move(South(x.normal()))
-        } else if (correct == 180) {
-            move(South(y.normal()))
-            move(West(x.normal()))
-        } else if (correct == 270) {
-            move(West(y.normal()))
-            move(North(x.normal()))
-        }
+        // turn right 90
+        move(East(y.normal()))
+        move(South(x.normal()))
+
+        // keep until zero
+        right(correct - 90)
     }
 }
 
 
-class Action1(val text: String) {
-    fun print() {
-        println(text)
-    }
+class Action1(private val text: String) {
 
     fun move(
         ship: Point,
         face: Direction
-    ) : Direction {
-        val match = Regex("(?<a>[A-Z])(?<val>\\d+)").matchEntire(text)
+    ): Direction {
+        val match = Regex("(?<a>[A-Z])(?<val>\\d+)").matchEntire(text)!!
 
-        val action = match!!.groups["a"]!!.value;
-        val delta = match!!.groups["val"]!!.value.toInt()
+        val action = match.groups["a"]!!.value
+        val delta = match.groups["val"]!!.value.toInt()
 
         when (action) {
             "N" -> ship.move(North(delta))
@@ -216,17 +191,15 @@ class Action1(val text: String) {
             "F" -> ship.move(Step(face, delta))
         }
 
-        val result = when (action) {
+        return when (action) {
             "L" -> face.left(delta)
             "R" -> face.right(delta)
             else -> face
         }
-
-        return result
     }
 }
 
-fun main(args: Array<String>) {
+fun main() {
 
     val file = File("input.txt").readLines()
 
@@ -237,8 +210,8 @@ fun main(args: Array<String>) {
         for (a in actions) {
             face = a.move(ship, face)
         }
-        val pos = ship.manhatan()
-        println("Second $pos")
+        val pos = ship.manhattan()
+        println("First $pos")
     }
 
     fun second() {
@@ -248,10 +221,10 @@ fun main(args: Array<String>) {
         for (a in actions) {
             a.move(waypoint, ship)
         }
-        val pos = ship.manhatan()
+        val pos = ship.manhattan()
         println("Second $pos")
     }
 
-    first()
-    second()
+    thread { first() }
+    thread { second() }
 }
