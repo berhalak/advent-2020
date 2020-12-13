@@ -1,6 +1,4 @@
 import java.io.File
-import kotlin.concurrent.thread
-import kotlin.math.abs
 
 class Bus(val id: Int, val index: Long = 0) {
     var _time = -1L
@@ -30,7 +28,7 @@ class Bus(val id: Int, val index: Long = 0) {
     }
 }
 
-class Inc {
+class Transmission {
     var time = 0L
     val map = mutableMapOf<String, Long>()
     val done = mutableSetOf<String>()
@@ -93,14 +91,28 @@ fun main() {
 
         var time = 0L;
 
-        val inc = Inc()
+        // in 17, x, 13, 19
+        // first we will start moving by 1
+        // but after some t, 1st and 3rd bus will arrive as we want (with 2 minutes delay)
+        // this situation will be happening in cycles
+        // so after it will occur second time, we will now how big is this cycle
+        // and we can accelerate
+        // and actually we can test now the situation when 3 buses arrive as we want
+        // calculate the cycle, and accelerate
+        val inc = Transmission()
 
         var start = 0;
 
+        var counter = -1L
+
         while (true) {
+
+            counter++
 
             buses.forEach { it.tick(time) }
 
+            // inform transmission that two gears are next to each other
+            // so we can accelerate
             var start = 0;
             while (start < buses.lastIndex) {
                 val first = buses[start]
@@ -113,8 +125,9 @@ fun main() {
                 }
             }
 
+            // if all buses will depart along their index
             if (start == buses.lastIndex) {
-                println(time)
+                println("After $time, calculated in $counter loops")
                 break
             }
 
