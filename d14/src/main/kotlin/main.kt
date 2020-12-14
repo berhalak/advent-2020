@@ -201,15 +201,14 @@ fun main() {
         }
     }
 
-    fun part1() {
-
+    fun part(memDecorator: (Memory, Mask) -> Memory) {
         val mem = RawMemory()
-        var current : Memory = mem;
+        var current: Memory = mem;
         val inst = file.map { factory(it) }
 
         for (i in inst) {
             if (i is MaskInstruction) {
-                current = MaskedMemory(mem, Mask(i.value))
+                current = memDecorator(mem, Mask(i.value))
             } else if (i is AssignmentInstruction) {
                 current.set(i.address, i.value)
             }
@@ -220,25 +219,6 @@ fun main() {
         println(result.toLong())
     }
 
-
-    fun part2() {
-
-        val mem = RawMemory()
-        var current : Memory = mem;
-        val inst = file.map { factory(it) }
-
-        for (i in inst) {
-            if (i is MaskInstruction) {
-                current = FlickerMemory(mem, Mask(i.value))
-            } else if (i is AssignmentInstruction) {
-                current.set(i.address, i.value)
-            }
-        }
-
-        val result = mem.map { it.toLong() }.sum()
-
-        println(result.toLong())
-    }
-    part1();
-    part2();
+    part(::MaskedMemory)
+    part(::FlickerMemory)
 }
