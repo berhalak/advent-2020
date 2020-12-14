@@ -1,5 +1,4 @@
 import java.io.File
-import java.util.*
 import java.util.BitSet
 
 
@@ -9,15 +8,19 @@ interface Instruction {
     }
 }
 
-fun String.toMInt(): MInt {
-    return MInt.fromDecimalString(this)
+fun String.toInt36(): Int36 {
+    return Int36.fromDecimalString(this)
 }
 
-class MInt {
+class Int36 {
     private var bits = BitSet(36)
 
+    override fun toString(): String {
+        return "${toLong()} (${toBitString()})"
+    }
+
     companion object {
-        fun fromDecimalString(text: String): MInt {
+        fun fromDecimalString(text: String): Int36 {
             if (!text.isBlank()) {
                 var value = text.toLong();
 
@@ -30,17 +33,17 @@ class MInt {
                     ++index
                     value = value ushr 1
                 }
-                var r = MInt()
+                var r = Int36()
                 r.bits = bits
 
                 return r
             }
-            return MInt()
+            return Int36()
         }
 
-        fun fromBinaryString(text: String): MInt {
+        fun fromBinaryString(text: String): Int36 {
             var index = 0;
-            val result = MInt()
+            val result = Int36()
             val bits = result.bits
 
             for (c in text.reversed()) {
@@ -73,54 +76,25 @@ class MInt {
         return r
     }
 
-    operator fun plus(other: MInt): MInt {
-        val r = BitSet(36);
+    operator fun plus(other: Int36): Int36 {
         val along = this.toLong()
         val blong = other.toLong()
-        val a = this.bits
-        val b = other.bits;
-        var m = false
+        var result = along + blong;
 
-        for (i in 0..35) {
-            if (a[i] && b[i]) {
-                if (m) {
+        val max = 1L.shl(36) - 1;
 
-                } else {
-                    m = true
-                }
-            } else if (a[i] || b[i]) {
-                if (m) {
+        if (result > max) {
+            result -= max
+        };
 
-                } else {
-                    m = false
-                    r[i] = true
-                }
-            } else {
-                if (m) {
-                    r[i] = true
-                    m = false;
-                }
-            }
-        }
-        if (m) {
-            r.clear();
-            r[0] = true
-        }
-
-        val result = MInt()
-        result.bits = r;
-        return result
+        return result.toString().toInt36()
     }
 }
 
-typealias Filter = (MInt) -> MInt
+typealias Filter = (Memory, Int36, Int36) -> Unit
 
-class Mask(val value: String) : Instruction {
-    override fun runOn(memory: Memory) {
-        memory.setFilter { it -> this.change(it) }
-    }
-
-    fun change(value: MInt): MInt {
+class Mask(val value: String) {
+    fun change(value: Int36): Int36 {
         val mask = this.value
         val numb = value.toBitString()
         val result = StringBuilder()
@@ -136,53 +110,116 @@ class Mask(val value: String) : Instruction {
             }
         }
 
-        return MInt.fromBinaryString(result.toString())
+        return Int36.fromBinaryString(result.toString())
     }
 }
 
-class Assignment(val address: Long, val value: MInt) : Instruction {
+fun String.removeLeading(prefix: String): String {
+    var result = this
+
+    while (result.startsWith(prefix))
+        result = result.removePrefix(prefix)
+
+    return result
+}
+
+fun String.replaceSubByMask(character: Char, sub: String): String {
+    val sb = StringBuilder(this)
+    var j = 0
+    for(i in sb.indices) {
+
+        if (sb[i] == character) {
+            sb[i] = sub[j++]
+        }
+    }
+    return sb.toString()
+}
+
+class MaskGenerator(val value: String) : Iterable<Mask> {
+
+    override fun iterator(): Iterator<Mask> {
+        var s = sequence<Mask> {
+            val mask = value.replace("X", "F").replace("0", "X");
+            val size = mask.count { it == 'F' }
+
+            for (i in 0..1L.shl(size) - 1) {
+                val iBinary = i.toString().toInt36().toBitString().substring((36 - size))
+
+                val final = mask.replaceSubByMask('F', iBinary);
+                yield(Mask(final))
+            }
+        }
+
+        return s.iterator()
+    }
+}
+
+class MaskInstruction(val value: String) : Instruction {
     override fun runOn(memory: Memory) {
-        memory.set(address, value);
+        memory.filter { m, a, v -> m.set(a.toLong(), Mask(value).change(v)) }
     }
 }
 
-class Memory : Iterable<MInt> {
-    val mem = mutableMapOf<Long, MInt>()
-    var _filter: Filter = { it }
+class Mask2Instruction(val value: String) : Instruction {
+    override fun runOn(memory: Memory) {
+        memory.filter { m, a, v -> this.make(m, a, v) }
+    }
 
-    override fun iterator(): Iterator<MInt> {
+    fun make(memory: Memory, a: Int36, value: Int36) {
+        val generator = MaskGenerator(this.value);
+
+
+        for (mask in generator) {
+            var changed = mask.change(a).toLong()
+            memory.set(changed, value)
+        }
+
+    }
+}
+
+class Assignment(val address: Long, val value: Int36) : Instruction {
+    override fun runOn(memory: Memory) {
+        memory.assign(address, value);
+    }
+}
+
+class Memory : Iterable<Int36> {
+    val mem = mutableMapOf<Long, Int36>()
+    var _filter: Filter? = null
+
+    override fun iterator(): Iterator<Int36> {
         return mem.values.iterator()
     }
 
-    fun set(a: Long, value: MInt) {
-        mem[a] = _filter(value)
+    fun set(a: Long, value: Int36) {
+        mem[a] = value
     }
 
-    fun setFilter(filter: Filter) {
+    fun assign(a: Long, value: Int36) {
+        if (_filter != null) {
+            _filter!!(this, a.toString().toInt36(), value)
+        } else {
+            set(a, value)
+        }
+    }
+
+    fun filter(filter: Filter) {
         this._filter = filter
     }
-
 }
 
 fun main() {
-
-    val a = "2".toMInt()
-    val b = "4".toMInt()
-    val c = a + b
-    val z = c.toLong()
-    println(z)
-
 
     val file = File("input.txt").readLines()
 
     fun part1() {
         fun factory(line: String): Instruction {
             if (line.startsWith("mask = ")) {
-                return Mask(line.replace("mask = ", ""))
+                return MaskInstruction(line.replace("mask = ", ""))
             } else {
                 val reg = Regex("""mem\[(?<a>\d+)\] = (?<val>\d+)""")
                 val m = reg.matchEntire(line)!!
-                return Assignment(m.groups["a"]!!.value.toLong(), m.groups["val"]!!.value.toMInt());
+                return Assignment(m.groups["a"]!!.value.toLong(), m.groups["val"]!!.value.toInt36());
             }
         }
 
@@ -194,10 +231,36 @@ fun main() {
             i.runOn(mem)
         }
 
-        val result = mem.reduce { a, b -> a + b }
+        val result = mem.map { it.toLong() }.sum()
 
         println(result.toLong())
     }
 
-    part1();
+
+    fun part2() {
+
+        val mem = Memory()
+
+        fun factory(line: String): Instruction {
+            if (line.startsWith("mask = ")) {
+                return Mask2Instruction(line.replace("mask = ", ""))
+            } else {
+                val reg = Regex("""mem\[(?<a>\d+)\] = (?<val>\d+)""")
+                val m = reg.matchEntire(line)!!
+                return Assignment(m.groups["a"]!!.value.toLong(), m.groups["val"]!!.value.toInt36());
+            }
+        }
+
+        val inst = file.map { factory(it) }
+
+        for (i in inst) {
+            i.runOn(mem)
+        }
+
+        val result = mem.map { it.toLong() }.sum()
+
+        println(result.toLong())
+    }
+   // part1();
+    part2();
 }
