@@ -1,12 +1,6 @@
 import java.io.File
 import java.util.BitSet
-
-
-interface Instruction {
-    fun runOn(memory: Memory) {
-
-    }
-}
+import kotlin.reflect.jvm.internal.impl.load.kotlin.JvmType
 
 fun String.toInt36(): Int36 {
     return Int36.fromDecimalString(this)
@@ -16,7 +10,7 @@ class Int36 {
     private var bits = BitSet(36)
 
     override fun toString(): String {
-        return "${toLong()} (${toBitString()})"
+        return "${toLong()}"
     }
 
     companion object {
@@ -55,6 +49,14 @@ class Int36 {
         }
     }
 
+    override fun equals(other: Any?): Boolean {
+        if (other == null || other !is Int36) return false
+        return (other.toLong().equals(toLong()))
+    }
+
+    override fun hashCode(): Int {
+        return bits.hashCode()
+    }
 
     fun toBitString(): String {
         val builder = StringBuilder()
@@ -91,8 +93,6 @@ class Int36 {
     }
 }
 
-typealias Filter = (Memory, Int36, Int36) -> Unit
-
 class Mask(val value: String) {
     fun change(value: Int36): Int36 {
         val mask = this.value
@@ -114,29 +114,7 @@ class Mask(val value: String) {
     }
 }
 
-fun String.removeLeading(prefix: String): String {
-    var result = this
-
-    while (result.startsWith(prefix))
-        result = result.removePrefix(prefix)
-
-    return result
-}
-
-fun String.replaceSubByMask(character: Char, sub: String): String {
-    val sb = StringBuilder(this)
-    var j = 0
-    for(i in sb.indices) {
-
-        if (sb[i] == character) {
-            sb[i] = sub[j++]
-        }
-    }
-    return sb.toString()
-}
-
 class MaskGenerator(val value: String) : Iterable<Mask> {
-
     override fun iterator(): Iterator<Mask> {
         var s = sequence<Mask> {
             val mask = value.replace("X", "F").replace("0", "X");
@@ -154,57 +132,58 @@ class MaskGenerator(val value: String) : Iterable<Mask> {
     }
 }
 
-class MaskInstruction(val value: String) : Instruction {
-    override fun runOn(memory: Memory) {
-        memory.filter { m, a, v -> m.set(a.toLong(), Mask(value).change(v)) }
-    }
+fun String.removeLeading(prefix: String): String {
+    var result = this
+
+    while (result.startsWith(prefix))
+        result = result.removePrefix(prefix)
+
+    return result
 }
+fun String.replaceSubByMask(character: Char, sub: String): String {
+    val sb = StringBuilder(this)
+    var j = 0
+    for (i in sb.indices) {
 
-class Mask2Instruction(val value: String) : Instruction {
-    override fun runOn(memory: Memory) {
-        memory.filter { m, a, v -> this.make(m, a, v) }
-    }
-
-    fun make(memory: Memory, a: Int36, value: Int36) {
-        val generator = MaskGenerator(this.value);
-
-
-        for (mask in generator) {
-            var changed = mask.change(a).toLong()
-            memory.set(changed, value)
+        if (sb[i] == character) {
+            sb[i] = sub[j++]
         }
-
     }
+    return sb.toString()
 }
 
-class Assignment(val address: Long, val value: Int36) : Instruction {
-    override fun runOn(memory: Memory) {
-        memory.assign(address, value);
-    }
+data class MaskInstruction(val value: String);
+data class AssignmentInstruction(val address: Int36, val value: Int36)
+
+interface Memory {
+    fun set(a: Int36, value: Int36)
 }
 
-class Memory : Iterable<Int36> {
-    val mem = mutableMapOf<Long, Int36>()
-    var _filter: Filter? = null
+class RawMemory : Memory, Iterable<Int36> {
+    val mem = mutableMapOf<Int36, Int36>()
 
     override fun iterator(): Iterator<Int36> {
         return mem.values.iterator()
     }
 
-    fun set(a: Long, value: Int36) {
+    override fun set(a: Int36, value: Int36) {
         mem[a] = value
     }
+}
 
-    fun assign(a: Long, value: Int36) {
-        if (_filter != null) {
-            _filter!!(this, a.toString().toInt36(), value)
-        } else {
-            set(a, value)
-        }
+class MaskedMemory(val inner: Memory, val mask: Mask) : Memory {
+    override fun set(a: Int36, value: Int36) {
+        inner.set(a, mask.change(value))
     }
+}
 
-    fun filter(filter: Filter) {
-        this._filter = filter
+class FlickerMemory(val inner: Memory, val mask: Mask) : Memory {
+    override fun set(a: Int36, value: Int36) {
+        val generator = MaskGenerator(mask.value);
+        for (mask in generator) {
+            var changed = mask.change(a)
+            inner.set(changed, value)
+        }
     }
 }
 
@@ -212,23 +191,28 @@ fun main() {
 
     val file = File("input.txt").readLines()
 
-    fun part1() {
-        fun factory(line: String): Instruction {
-            if (line.startsWith("mask = ")) {
-                return MaskInstruction(line.replace("mask = ", ""))
-            } else {
-                val reg = Regex("""mem\[(?<a>\d+)\] = (?<val>\d+)""")
-                val m = reg.matchEntire(line)!!
-                return Assignment(m.groups["a"]!!.value.toLong(), m.groups["val"]!!.value.toInt36());
-            }
+    fun factory(line: String): Any {
+        if (line.startsWith("mask = ")) {
+            return MaskInstruction(line.replace("mask = ", ""))
+        } else {
+            val reg = Regex("""mem\[(?<a>\d+)\] = (?<val>\d+)""")
+            val m = reg.matchEntire(line)!!
+            return AssignmentInstruction(m.groups["a"]!!.value.toInt36(), m.groups["val"]!!.value.toInt36());
         }
+    }
 
-        val mem = Memory()
+    fun part1() {
 
+        val mem = RawMemory()
+        var current : Memory = mem;
         val inst = file.map { factory(it) }
 
         for (i in inst) {
-            i.runOn(mem)
+            if (i is MaskInstruction) {
+                current = MaskedMemory(mem, Mask(i.value))
+            } else if (i is AssignmentInstruction) {
+                current.set(i.address, i.value)
+            }
         }
 
         val result = mem.map { it.toLong() }.sum()
@@ -239,28 +223,22 @@ fun main() {
 
     fun part2() {
 
-        val mem = Memory()
-
-        fun factory(line: String): Instruction {
-            if (line.startsWith("mask = ")) {
-                return Mask2Instruction(line.replace("mask = ", ""))
-            } else {
-                val reg = Regex("""mem\[(?<a>\d+)\] = (?<val>\d+)""")
-                val m = reg.matchEntire(line)!!
-                return Assignment(m.groups["a"]!!.value.toLong(), m.groups["val"]!!.value.toInt36());
-            }
-        }
-
+        val mem = RawMemory()
+        var current : Memory = mem;
         val inst = file.map { factory(it) }
 
         for (i in inst) {
-            i.runOn(mem)
+            if (i is MaskInstruction) {
+                current = FlickerMemory(mem, Mask(i.value))
+            } else if (i is AssignmentInstruction) {
+                current.set(i.address, i.value)
+            }
         }
 
         val result = mem.map { it.toLong() }.sum()
 
         println(result.toLong())
     }
-   // part1();
+    part1();
     part2();
 }
