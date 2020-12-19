@@ -26,66 +26,62 @@ class Rule2 : Rule {
 }
 
 fun isValid(msg: String): Boolean {
-    val zeroRule = table.find { it.id() == 0 }!!
+    val zeroRule = table[0]!!
+
+    println("Testing $msg")
 
     return test(zeroRule.body(), msg)
 }
 
-fun eat(def: String, msg: String): String {
+val cache = mutableMapOf<String, Boolean>()
 
-    if (def.startsWith("\"")) {
-        val content = def.replace("\"", "")
-        if (msg.startsWith(content)) return msg.substring(content.length)
-        return msg
+fun test(ruleBody: String, msg: String): Boolean {
+
+    val key = ruleBody + "_" + msg
+
+    if (cache.containsKey(key)) return cache[key]!!
+
+    if (ruleBody.startsWith("\"")) {
+        val content = ruleBody.replace("\"", "")
+        val result = msg == content
+
+        cache[key] = result
+
+        return result
     }
 
-    if (def.contains("|")) {
-        val parts = def.split(" | ")
+    if (ruleBody.contains("|")) {
+        val parts = ruleBody.split(" | ")
         return parts.any { test(it, msg) }
     }
 
-    if (def.contains(" ")) {
-        var parts = def.split(" ")
-        var last = parts.last()
-        var notLast = parts.dropLast(1)
-        var start = msg
-        notLast.forEach {
-            start = eat(it, start)
+    if (ruleBody.contains(" ")) {
+        for(i in 0..msg.length-1) {
+            val first = msg.dropLast(i)
+            val second = msg.drop(msg.length - i)
+            val firstRule = ruleBody.split(" ")[0]
+            val restRule = ruleBody.split(" ").drop(1).joinToString(" ")
+            if (test(firstRule, first) && test(restRule, second)) {
+
+
+                cache[key] = true
+
+                return true
+
+            }
         }
-        return test(last, start)
+        cache[key] = false
+
+        return false
     }
 
-    throw Error("Shouldn't happen")
+
+    val refRule = table[ruleBody.toInt()]!!
+
+    return test(refRule.body(), msg)
 }
 
-
-fun test(def: String, msg: String): Boolean {
-
-    if (def.startsWith("\"")) {
-        val content = def.replace("\"", "")
-        return msg == content
-    }
-
-    if (def.contains("|")) {
-        val parts = def.split(" | ")
-        return parts.any { test(it, msg) }
-    }
-
-    if (def.contains(" ")) {
-        var parts = def.split(" ")
-        var last = parts.last()
-        var notLast = parts.dropLast(1)
-        var start = msg
-        notLast.forEach {
-            start = eat(it, start)
-        }
-        return test(last, start)
-    }
-
-    throw Error("Shouldn't happen")
-}
-
-val table = mutableListOf<Rule>()
+val table = mutableMapOf<Int, Rule>()
 
 fun main() {
 
@@ -100,7 +96,7 @@ fun main() {
         val messages = file.takeLastWhile { !it.isBlank() }.reversed().map { it }
 
         table.clear()
-        table.addAll(rules)
+        rules.forEach { table[it.id()] = it }
 
         val valid = messages.filter { isValid(it) }.count()
 
@@ -108,6 +104,6 @@ fun main() {
         println("Valid messages are $valid")
     }
 
-//    part(::Rule1)
+   // part(::Rule)
     part(::Rule2)
 }
