@@ -28,7 +28,8 @@ class Rule2 : Rule {
 fun isValid(msg: String): Boolean {
     val zeroRule = table[0]!!
 
-    println("Testing $msg")
+    cache.clear()
+  //  println("Testing $msg")
 
     return test(zeroRule.body(), msg)
 }
@@ -37,6 +38,9 @@ val cache = mutableMapOf<String, Boolean>()
 
 fun test(ruleBody: String, msg: String): Boolean {
 
+    if (msg.isBlank()) return false
+    if (ruleBody.isBlank()) return false
+
     val key = ruleBody + "_" + msg
 
     if (cache.containsKey(key)) return cache[key]!!
@@ -44,40 +48,34 @@ fun test(ruleBody: String, msg: String): Boolean {
     if (ruleBody.startsWith("\"")) {
         val content = ruleBody.replace("\"", "")
         val result = msg == content
-
         cache[key] = result
-
         return result
     }
 
     if (ruleBody.contains("|")) {
         val parts = ruleBody.split(" | ")
-        return parts.any { test(it, msg) }
+        val result = parts.any { test(it, msg) }
+        cache[key] = result
+        return result
     }
 
     if (ruleBody.contains(" ")) {
-        for(i in 0..msg.length-1) {
+        val rules = ruleBody.split(" ")
+        for(i in 1 until msg.length) {
             val first = msg.dropLast(i)
             val second = msg.drop(msg.length - i)
-            val firstRule = ruleBody.split(" ")[0]
-            val restRule = ruleBody.split(" ").drop(1).joinToString(" ")
+            val firstRule = rules[0]
+            val restRule = rules.drop(1).joinToString(" ")
             if (test(firstRule, first) && test(restRule, second)) {
-
-
                 cache[key] = true
-
                 return true
-
             }
         }
         cache[key] = false
-
         return false
     }
 
-
     val refRule = table[ruleBody.toInt()]!!
-
     return test(refRule.body(), msg)
 }
 
@@ -97,13 +95,11 @@ fun main() {
 
         table.clear()
         rules.forEach { table[it.id()] = it }
-
         val valid = messages.filter { isValid(it) }.count()
-
 
         println("Valid messages are $valid")
     }
 
-   // part(::Rule)
+    part(::Rule)
     part(::Rule2)
 }
