@@ -1,44 +1,105 @@
 import java.io.File
-import java.lang.Error
 import kotlin.math.sqrt
 
-class Tile(val lines: List<String>) {
-    fun id() : Long {
+
+typealias  Array2d<T> = Array<Array<T>>
+
+class Tile {
+    val _id: Int;
+    val _map: Array2d<Boolean>;
+
+    constructor(lines: List<String>) {
         var firstLine = lines.first()
-        val number = firstLine.replace("Tile ", "").replace(":", "").toLong()
-        return number
+        val number = firstLine.replace("Tile ", "").replace(":", "").toInt()
+        _id = number
+        _map = Array<Array<Boolean>>(
+            lines[1].length,
+            { y -> Array<Boolean>(lines[1].length, { x -> lines[y + 1][x] == '#' }) })
+    }
+
+    constructor(id: Int, map: Array2d<Boolean>) {
+        _id = id
+        _map = map.clone()
+    }
+
+
+    fun id(): Int {
+        return _id
+    }
+
+    fun rotate() : Tile {
+        val clone = Tile(_id, _map)
+
+
+        val cloned = clone._map
+        val orig = this._map
+
+        val size = map.size
+
+        for(y in map.indices) {
+            for(x in map[y].indices) {
+                val source_x = x
+                val source_y = y
+
+                val dest_y = source_x
+                val dest_x = size - source_y
+
+                cloned[dest_y][size - dest_x] = orig[source_y][source_x]
+            }
+        }
+
+        return clone
+    }
+
+    fun directions(): Iterable<Tile> {
+        var last = this
+        return sequence<Tile> {
+            for (i in 1..4) {
+                val next = last.rotate()
+                yield(next)
+                last = next
+            }
+        }.asIterable()
+    }
+
+    override fun equals(other: Any?): Boolean {
+        if (other == null || other !is Tile) return false
+        return other.id() == this.id()
     }
 }
 
-class Place(val x: Int, val y: Int, val size: Int) {
-    fun findTile(tiles: List<Tile>) {
+class Image(val size: Int) {
 
+    fun start(): Position {
+        return Position(0, 0, this)
     }
 
-    fun isCorner() : Boolean {
-        return when {
-            x == 0 && y == 0 -> true
-            x == 0 && y == size - 1 -> true
-            x == size - 1 && y == 0 -> true
-            x == size - 1 && x == size - 1 -> true
-            else -> false
+    fun put(p: Position, tile: Tile): Boolean {
+        if (p.hasPrev()) {
+            val prevTile = pull(p.prev())
+
         }
     }
 
-    fun tile() : Tile {
+    fun clone(): Image {
 
     }
 }
 
-class Image(val size: Int) : Iterable<Place> {
-    override fun iterator(): Iterator<Place> {
-        TODO("Not yet implemented")
+
+class Position(val x: Int, val y: Int, val i: Image) {
+    fun next(): Position {
+        val maxIndex = i.size - 1
+        if (x == maxIndex) return Position(0, y + 1, i)
+        return Position(x + 1, y, i)
     }
 
-    fun corners() : Sequence<Tile> {
-        return this.filter { it.isCorner() }.map { it.tile() }.asSequence()
+    fun hasNext(): Boolean {
+        val maxIndex = i.size - 1
+        return x != maxIndex && y != maxIndex
     }
 }
+
 
 fun main() {
 
@@ -51,17 +112,25 @@ fun main() {
 
     // first get the size of the squere
     val squereSize = sqrt(tiles.size.toDouble()).toInt()
+    val img = Image(squereSize)
 
-    var image = Image(squereSize)
 
-    for (place in image) {
-        place.findTile(tiles)
-    }
-
-    val corners = image.corners()
-
-    val product = corners.map { it.id() }.product()
-
-    println(product)
-
+    solve(tiles.toList(), img, img.start())
 }
+
+fun solve(tiles: Iterable<Tile>, img: Image, p: Position): Boolean {
+    // if upper left corner
+    for (t in tiles) {
+        for (dir in t.directions()) {
+            if (!img.put(p, dir)) continue
+            if (!p.hasNext()) break
+            if (solve(tiles.except(t), img.clone(), p.next())) {
+                println("Solved")
+                return true
+            }
+        }
+    }
+    if (tiles.any()) return false
+    return true
+}
+

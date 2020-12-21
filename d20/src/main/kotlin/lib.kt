@@ -12,6 +12,8 @@ fun <T> _combine(list: List<T>): Sequence<Pair<T, T>> = sequence {
 
 fun <T> List<T>.combine() : Sequence<Pair<T, T>> = _combine(this)
 
+fun <T> Iterable<T>.except(t: T) : Iterable<T> = this.filter { !it!!.equals(t) }
+
 fun Sequence<Long>.product() : Long {
     return this.reduce { a, b -> a * b}
 }
