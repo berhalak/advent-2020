@@ -89,7 +89,11 @@ class Tile {
         return false
     }
 
-    fun flip(dir: Direction): Tile {
+    fun swap(): Tile {
+        return flip(Direction.WEST)
+    }
+
+    fun flip(dir: Direction = Direction.NORTH): Tile {
         if (dir == Direction.NORTH) {
             val result = Tile(_id, _map)
 
@@ -167,15 +171,41 @@ class Tile {
         if (other == null || other !is Tile) return false
         return other.id() == this.id()
     }
+
+    fun adjent(t: Tile): Boolean {
+        for(dir in Direction.values()) {
+            for(morph in t.modify()) {
+                if (this.match(morph, dir)) return true
+            }
+        }
+        return false
+    }
 }
 
 class Image(val size: Int) {
 
-    val map = mutableMapOf<Position, Tile>()
+    private val map = mutableMapOf<Position, Tile>()
+
+    fun print() {
+        for (row in 0 until size) {
+            for (col in 0 until size) {
+                val pos = Position(col, row, this)
+                if (has(pos)) {
+                    print(look(pos).id())
+                } else {
+                    print("....")
+                }
+                print(" ")
+            }
+            println()
+        }
+    }
 
     fun start(): Position {
         return Position(0, 0, this)
     }
+
+    fun filled() = map.size
 
     fun corners(): Sequence<Tile> {
         val self = this
@@ -202,6 +232,21 @@ class Image(val size: Int) {
 
     fun put(x: Int, y: Int, t: Tile) {
         put(Position(x, y, this), t)
+    }
+
+    fun force(x: Int, y: Int, t: Tile) {
+        if (!solve(x, y, t)) throw Error("Can't solve $t in $x, $y")
+    }
+
+    fun solve(x: Int, y: Int, t: Tile): Boolean {
+        val p = Position(x, y, this)
+        for (face in t.modify()) {
+            if (can(p, face)) {
+                put(p, face)
+                return true
+            }
+        }
+        return false
     }
 
     fun put(p: Position, tile: Tile) {
@@ -289,12 +334,24 @@ class Position(val x: Int, val y: Int, val i: Image) {
 
     fun hasNext(): Boolean {
         val maxIndex = i.size - 1
-        return x != maxIndex && y != maxIndex
+        return x != maxIndex || y != maxIndex
     }
 
     fun hasPrev(): Boolean {
         return y > 0 || x > 0
     }
+}
+
+fun sort(list: List<Tile>) : Sequence<Tile> {
+    // take in order of common edge
+    val result = mutableMapOf<Tile, Int>();
+
+    for(t in list) {
+        val adjent = list.filter { !it.equals(t) && it.adjent(t) }.count()
+        result[t] = adjent
+    }
+
+    return result.toList().sortedBy { it.second }.map { it.first }.asSequence()
 }
 
 
@@ -307,30 +364,38 @@ fun main() {
         tiles.add(Tile(lines))
     }
 
-    var a = tiles.first()
-    var b = tiles[1]
-
-    val i = Image(3)
-    b.print()
-
-    println()
-    b = b.flip(Direction.NORTH)
-    b.print()
-    println()
-    b = b.flip(Direction.NORTH)
-    b.print()
-    i.put(0,0, b)
-    i.put(1, 0, a)
+//    var t23 = tiles[0]
+//    var t19 = tiles[1]
+//    var t11 = tiles[2]
+//    var t142 = tiles[3]
+//    var t148 = tiles[4]
+//    var t24 = tiles[5]
+//    var t29 = tiles[6]
+//    var t27 = tiles[7]
+//    var t30 = tiles[8]
+//
+//    val b = Image(3)
+//
+//    b.put(0,0, t19.flip())
+//    b.force(1, 0, t23)
+//    b.force(2, 0, t30)
+//    b.force(0, 1, t27)
+//    b.force(1, 1, t142)
+//    b.force(2, 1, t24)
+//    b.force(0, 2, t29)
+//    b.force(1, 2, t148)
+//    b.force(2, 2, t11)
+//    val bp = b.corners().map { it.id() }.product()
+//    println(bp)
+//
+//    return
 
 
     // first get the size of the squere
     val squereSize = sqrt(tiles.size.toDouble()).toInt()
     val img = Image(squereSize)
 
-
-    val solved = solve(tiles.toList(), img, img.start())
-
-    println("Attempts $counter")
+    val solved = solve(sort(tiles).toList(), img, img.start())
 
     if (solved != null) {
         println("Solved")
@@ -341,25 +406,26 @@ fun main() {
     }
 }
 
-var counter = 0
 fun solve(tiles: Iterable<Tile>, img: Image, p: Position): Image? {
-    counter++
 
-    if (img.id(0, 0) == 1951L &&
-        img.id(1, 0) == 2311L &&
-        img.id(2, 0) == 3079L
-    ) {
-        println("ok")
-    }
+    var cloned = img
 
-    // if upper left corner
+    println()
+    img.print()
+
     for (t in tiles) {
-        println("${img.placed()} ${t.id()}")
+        if (t.id() == 1951L) {
+            if (img.filled() == 0) {
+                println("Started")
+            }
+        }
         for (dir in t.modify()) {
+
+
             // try to put puzzle in place
             if (!img.can(p, dir)) continue
 
-            val cloned = img.clone()
+            cloned = img.clone()
             cloned.put(p, dir)
 
             // if this is the end break
@@ -368,16 +434,13 @@ fun solve(tiles: Iterable<Tile>, img: Image, p: Position): Image? {
             // if not, put next puzzl in next place
             val solved = solve(tiles.except(t), cloned, p.next())
             if (solved != null) {
-                println("Solved")
                 return solved
             }
         }
     }
 
-    // if tiles are left
-    if (tiles.any()) return null
+    if (cloned.filled() == cloned.size * cloned.size) return cloned
 
-    // no tiles, super return final image
-    return img
+    return null
 }
 
