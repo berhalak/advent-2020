@@ -5,9 +5,93 @@ import kotlin.math.sqrt
 
 typealias  Array2d<T> = Array<Array<T>>
 
+class Bitmap {
+
+    lateinit var data: Array2d<Boolean>;
+
+    constructor(map: Array2d<Boolean>) {
+        data = Array(map.size) { Array<Boolean>(map[0].size) { false } }
+
+        for(i in map.indices) {
+            for(j in map[i].indices) {
+                data[i][j] = map[i][j]
+            }
+        }
+    }
+
+    fun print() {
+        for (r in 0 until data.size) {
+            for (c in data[r]) {
+                print(if (c) "#" else ".")
+            }
+            println()
+        }
+    }
+
+    constructor(width: Int, height: Int) {
+        data = Array(height) { Array<Boolean>(width) { false } }
+    }
+
+    fun pixels(): Int {
+        val all = data.flatMap { it.asIterable() }.filter { it }.count()
+        return all
+    }
+
+    fun clear(dRow: Int, dCol: Int, mask: Bitmap) {
+        for (y in dRow until mask.height + dRow) {
+            if (y > height - 1) return
+            for (x in dCol until mask.width + dCol) {
+                if (x > width - 1) return
+
+                val maskY = y - dRow
+                val maskX = x - dCol
+
+                if (!mask.data[maskY][maskX]) {
+                    continue
+                }
+
+                data[y][x] = false
+            }
+        }
+    }
+
+    fun match(dRow: Int, dCol: Int, mask: Bitmap): Boolean {
+        for (y in dRow until mask.height + dRow) {
+            if (y > height - 1) return false
+            for (x in dCol until mask.width + dCol) {
+                if (x > width - 1) return false
+
+                val maskY = y - dRow
+                val maskX = x - dCol
+
+                if (!mask.data[maskY][maskX]) {
+                    continue
+                }
+
+                if (data[y][x]) {
+                    continue
+                }
+
+                return false
+
+            }
+        }
+
+        return true;
+    }
+
+    val height
+        get() = data.size
+
+    val width
+        get() = data[0].size
+}
+
 class Tile {
     val _id: Long;
     val _map: Array2d<Boolean>;
+
+    fun size() = _map.size
 
     override fun toString(): String {
         return id().toString()
@@ -24,20 +108,32 @@ class Tile {
 
     constructor(id: Long, map: Array2d<Boolean>) {
         _id = id
-        val size = map.size
-        _map = Array<Array<Boolean>>(size, { Array<Boolean>(size, { false }) })
-
+        _map = map
     }
 
+    constructor(id: Long, size: Int) {
+        _id = id
+        _map = Array<Array<Boolean>>(size, { Array<Boolean>(size, { false }) })
+    }
 
     fun id(): Long {
         return _id
     }
 
+    fun noBorder(): Tile {
+        val clone = Tile(id(), size() - 2)
+
+        for (row in 1 until _map.lastIndex) {
+            for (col in 1 until _map.lastIndex) {
+                clone._map[row - 1][col - 1] = _map[row][col]
+            }
+        }
+
+        return clone
+    }
+
     fun rotate(): Tile {
-
-        val clone = Tile(_id, _map)
-
+        val clone = Tile(_id, _map.size)
         val cloned = clone._map
         val orig = this._map
 
@@ -93,9 +189,11 @@ class Tile {
         return flip(Direction.WEST)
     }
 
+    fun toBitmap() = Bitmap(_map)
+
     fun flip(dir: Direction = Direction.NORTH): Tile {
         if (dir == Direction.NORTH) {
-            val result = Tile(_id, _map)
+            val result = Tile(_id, _map.size)
 
             var from = _map
             var to = result._map
@@ -110,7 +208,7 @@ class Tile {
             return result
         }
 
-        val result = Tile(_id, _map)
+        val result = Tile(_id, _map.size)
 
         var from = _map
         var to = result._map
@@ -173,8 +271,8 @@ class Tile {
     }
 
     fun adjent(t: Tile): Boolean {
-        for(dir in Direction.values()) {
-            for(morph in t.modify()) {
+        for (dir in Direction.values()) {
+            for (morph in t.modify()) {
                 if (this.match(morph, dir)) return true
             }
         }
@@ -182,11 +280,75 @@ class Tile {
     }
 }
 
+
+class Monster {
+    val printed = """
+                  # 
+#    ##    ##    ###
+ #  #  #  #  #  #   
+    """
+
+    fun toBitmap(): Bitmap {
+        val lines = printed.lines().subList(1, 4)
+        val result = Bitmap(lines[0].length, 3)
+        for (i in lines.indices) {
+            val line = lines[i]
+            for (j in line.indices) {
+                val c = line[j]
+                if (c == '#') result.data[i][j] = true
+            }
+        }
+        return result
+    }
+}
+
 class Image(val size: Int) {
 
     private val map = mutableMapOf<Position, Tile>()
 
-    fun print() {
+    fun toBorderLessTile(): Tile {
+        // get first tile
+        val tileSize = map.values.first().noBorder().size()
+        val memory = Array<Array<Boolean>>(size * tileSize, { Array<Boolean>(size * tileSize, { false }) })
+        for (row in 0 until size) {
+            for (col in 0 until size) {
+                val pos = Position(col, row, this)
+                val tile = look(pos).noBorder()
+                for (y in tile._map.indices) {
+                    for (x in tile._map[y].indices) {
+                        val properY = y + row * tileSize
+                        val properX = x + col * tileSize
+                        memory[properY][properX] = tile._map[y][x]
+                    }
+                }
+            }
+        }
+
+        return Tile(0, memory)
+    }
+
+    fun toTile(): Tile {
+        // get first tile
+        val tileSize = map.values.first().size()
+        val memory = Array<Array<Boolean>>(size * tileSize, { Array<Boolean>(size * tileSize, { false }) })
+        for (row in 0 until size) {
+            for (col in 0 until size) {
+                val pos = Position(col, row, this)
+                val tile = look(pos)
+                for (y in tile._map.indices) {
+                    for (x in tile._map[y].indices) {
+                        val properY = y + row * tileSize
+                        val properX = x + col * tileSize
+                        memory[properY][properX] = tile._map[y][x]
+                    }
+                }
+            }
+        }
+
+        return Tile(0, memory)
+    }
+
+    fun printIds() {
         for (row in 0 until size) {
             for (col in 0 until size) {
                 val pos = Position(col, row, this)
@@ -342,11 +504,10 @@ class Position(val x: Int, val y: Int, val i: Image) {
     }
 }
 
-fun sort(list: List<Tile>) : Sequence<Tile> {
-    // take in order of common edge
+fun sort(list: List<Tile>): Sequence<Tile> {
     val result = mutableMapOf<Tile, Int>();
 
-    for(t in list) {
+    for (t in list) {
         val adjent = list.filter { !it.equals(t) && it.adjent(t) }.count()
         result[t] = adjent
     }
@@ -364,34 +525,6 @@ fun main() {
         tiles.add(Tile(lines))
     }
 
-//    var t23 = tiles[0]
-//    var t19 = tiles[1]
-//    var t11 = tiles[2]
-//    var t142 = tiles[3]
-//    var t148 = tiles[4]
-//    var t24 = tiles[5]
-//    var t29 = tiles[6]
-//    var t27 = tiles[7]
-//    var t30 = tiles[8]
-//
-//    val b = Image(3)
-//
-//    b.put(0,0, t19.flip())
-//    b.force(1, 0, t23)
-//    b.force(2, 0, t30)
-//    b.force(0, 1, t27)
-//    b.force(1, 1, t142)
-//    b.force(2, 1, t24)
-//    b.force(0, 2, t29)
-//    b.force(1, 2, t148)
-//    b.force(2, 2, t11)
-//    val bp = b.corners().map { it.id() }.product()
-//    println(bp)
-//
-//    return
-
-
-    // first get the size of the squere
     val squereSize = sqrt(tiles.size.toDouble()).toInt()
     val img = Image(squereSize)
 
@@ -399,8 +532,34 @@ fun main() {
 
     if (solved != null) {
         println("Solved")
-        val corners = solved.corners().map { it.id() }.product()
-        println(corners)
+
+        println("Product is " + solved.corners().map { it.id() }.product())
+
+        var image = solved.toBorderLessTile()
+
+        println("Water roughnes is " + image.toBitmap().pixels())
+
+        val m = Monster().toBitmap()
+        println("Monster size is " + m.pixels())
+
+        for (i in image.modify()) {
+            val map = i.toBitmap()
+            var count = 0
+
+            for (r in 0 until map.height) {
+                for (c in 0 until map.height) {
+                    if (map.match(r, c, m)) {
+                        map.clear(r, c, m)
+                        count++
+                    }
+                }
+            }
+
+            if (count > 0) {
+                println("Found $count monsters, water roughness is ${map.pixels()}")
+                map.print()
+            }
+        }
     } else {
         println("Failed")
     }
@@ -410,8 +569,6 @@ fun solve(tiles: Iterable<Tile>, img: Image, p: Position): Image? {
 
     var cloned = img
 
-    println()
-    img.print()
 
     for (t in tiles) {
         if (t.id() == 1951L) {
