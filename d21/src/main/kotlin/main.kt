@@ -1,6 +1,4 @@
 import java.io.File
-import kotlin.Error
-import kotlin.math.sqrt
 
 class Food(aList: Iterable<String>, val al: Alergens) {
 
@@ -48,6 +46,10 @@ class Food(aList: Iterable<String>, val al: Alergens) {
             al.remove(single.al)
         }
     }
+
+    fun removeIngredients(ingNames: List<String>) {
+        list = list.except(ingNames).sorted()
+    }
 }
 
 class Alergens(aList: Iterable<String>) {
@@ -69,6 +71,8 @@ class Alergens(aList: Iterable<String>) {
     }
 }
 
+typealias CookBook = Map2d<String, Int>
+
 fun main() {
     val file = File("input.txt").readLines()
     val foods = file.map {
@@ -77,7 +81,7 @@ fun main() {
         return@map Food(left.split(" "), Alergens(right.split(", ")))
     }
 
-    val foodMap = Map2d<String, Int>()
+    val foodMap = CookBook()
     for (f in foods) {
         for (i in f.list) {
             for (a in f.al.list) {
@@ -86,10 +90,74 @@ fun main() {
         }
     }
 
-    for((food, map) in foodMap) {
-        val alergen = map.first().first
-
+    fun noneHas(book: CookBook) : Boolean {
+        for((food, map) in book) {
+            if (map.any { it.second > 0}) {
+                return false
+            }
+        }
+        return true
     }
 
+    fun mostPropoble(book: CookBook) : Pair<String, String> {
+        var current: Pair<String, String>? = null
+        var max = 0
+
+        for((food, data) in book) {
+            for((ing, total) in data) {
+                if (total > max) {
+                    max = total
+                    current = food to ing
+                }
+            }
+        }
+
+        return current!!
+    }
+
+    fun removeIngredient(name: String, book: CookBook) {
+        for((food, data) in book) {
+            data[name] = 0
+        }
+    }
+
+    fun removeFood(name: String, book: CookBook) {
+        book.remove(name)
+    }
+
+    fun printMap(book: CookBook) {
+        for((food, data) in book) {
+            for((ing, total) in data) {
+                println("$food : $ing = $total")
+            }
+        }
+    }
+
+
+    printMap(foodMap)
+
+    println("Solving")
+
+    while(!noneHas(foodMap)) {
+        // take the most propoble
+        val (food, ingredient) = mostPropoble(foodMap);
+        removeIngredient(ingredient, foodMap)
+        removeFood(food, foodMap)
+    }
+
+    val ingNames = foodMap.map { it.first }.distinct()
+
+    val counts = ingNames.map { ing ->
+        ing to foods.filter { it.list.contains(ing) }.count()
+    }
+
+    val total = counts.map { it.second }.sum()
+
+    println(total)
+
+    // remove ingredients from food list now
+    foods.forEach { it.removeIngredients(ingNames)}
+
+    foods.forEach { it.print() }
 }
 
