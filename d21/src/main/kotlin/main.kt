@@ -1,4 +1,5 @@
 import java.io.File
+import kotlin.math.sin
 
 class Food(aList: Iterable<String>, val al: Alergens) {
 
@@ -19,8 +20,7 @@ class Food(aList: Iterable<String>, val al: Alergens) {
         val commonList = myList.intersect(otherList)
         if (commonList.size > 0) {
             val commonAl = al.product(food.al)
-            if (commonAl != null)
-                return Food(commonList, commonAl)
+            return Food(commonList, commonAl)
         }
         return null
     }
@@ -50,6 +50,14 @@ class Food(aList: Iterable<String>, val al: Alergens) {
     fun removeIngredients(ingNames: List<String>) {
         list = list.except(ingNames).sorted()
     }
+
+    fun foodList(): String {
+        return list.sorted().joinToString(",")
+    }
+
+    fun empty(): Boolean {
+        return ingredients() == 0 || alergenns() == 0
+    }
 }
 
 class Alergens(aList: Iterable<String>) {
@@ -59,9 +67,8 @@ class Alergens(aList: Iterable<String>) {
         return "(contains ${list.joinToString(", ")})"
     }
 
-    fun product(other: Alergens): Alergens? {
+    fun product(other: Alergens): Alergens {
         val common = list.intersect(other.list)
-        if (!common.any()) return null
         return Alergens(common)
     }
 
@@ -75,7 +82,7 @@ typealias CookBook = Map2d<String, Int>
 
 fun main() {
     val file = File("input.txt").readLines()
-    val foods = file.map {
+    var foods = file.map {
         var (left, right) = it.split(" (contains ")
         right = right.replace(")", "")
         return@map Food(left.split(" "), Alergens(right.split(", ")))
@@ -90,21 +97,21 @@ fun main() {
         }
     }
 
-    fun noneHas(book: CookBook) : Boolean {
-        for((food, map) in book) {
-            if (map.any { it.second > 0}) {
+    fun noneHas(book: CookBook): Boolean {
+        for ((food, map) in book) {
+            if (map.any { it.second > 0 }) {
                 return false
             }
         }
         return true
     }
 
-    fun mostPropoble(book: CookBook) : Pair<String, String> {
+    fun mostPropoble(book: CookBook): Pair<String, String> {
         var current: Pair<String, String>? = null
         var max = 0
 
-        for((food, data) in book) {
-            for((ing, total) in data) {
+        for ((food, data) in book) {
+            for ((ing, total) in data) {
                 if (total > max) {
                     max = total
                     current = food to ing
@@ -116,7 +123,7 @@ fun main() {
     }
 
     fun removeIngredient(name: String, book: CookBook) {
-        for((food, data) in book) {
+        for ((food, data) in book) {
             data[name] = 0
         }
     }
@@ -126,8 +133,8 @@ fun main() {
     }
 
     fun printMap(book: CookBook) {
-        for((food, data) in book) {
-            for((ing, total) in data) {
+        for ((food, data) in book) {
+            for ((ing, total) in data) {
                 println("$food : $ing = $total")
             }
         }
@@ -138,7 +145,7 @@ fun main() {
 
     println("Solving")
 
-    while(!noneHas(foodMap)) {
+    while (!noneHas(foodMap)) {
         // take the most propoble
         val (food, ingredient) = mostPropoble(foodMap);
         removeIngredient(ingredient, foodMap)
@@ -155,9 +162,49 @@ fun main() {
 
     println(total)
 
+    println("Removing $ingNames")
+
     // remove ingredients from food list now
-    foods.forEach { it.removeIngredients(ingNames)}
+    foods.forEach { it.removeIngredients(ingNames) }
+
+    println("Solving part 2")
+
 
     foods.forEach { it.print() }
+
+    var result = mutableListOf<Food>()
+
+    while (foods.any()) {
+        start@ for (i in 0..foods.lastIndex - 1) {
+            var c = foods[i]
+            for (j in i + 1..foods.lastIndex) {
+                val z = c.product(foods[j])
+                if (z == null) {
+                    break
+                } else if (z.alergenns() > 0) {
+                    c = z!!
+                }
+                if (c.isSingle()) {
+                    println(c)
+                    foods.forEach { it.removeFood(c) }
+                    foods = foods.filter { !it.empty() }
+                    result.add(c)
+                    break@start
+                }
+            }
+        }
+
+        foods = foods.distinctBy { it.toString() }
+        for (c in foods.filter { it.isSingle() }) {
+            println(c)
+            foods = foods.filter { c != it }
+            foods.forEach { it.removeFood(c) }
+            result.add(c)
+        }
+    }
+
+    val resultList = result.distinctBy { it.toString() }.toMutableList().sortedBy { it.al.list[0] }
+
+    println(resultList.map { it.foodList() }.joinToString(","))
 }
 
